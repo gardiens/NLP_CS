@@ -25,9 +25,16 @@ def select_prompt(cfg):
     else:
         raise ValueError(f"Unknown prompt type: {cfg.prompt_type}")
 
-def get_demonstration(cfg,ds_train):
+def get_demonstration(cfg,ds_train,example=None):
     if cfg.demonstration=="basic":
         return ds_train.select([0,1,3])  # example: use 3-shot
+    if cfg.demonstration=="None":
+        return ds_train.select([])
+    if cfg.demonstration=="small":
+        return ds_train.select([0,1])  # example: use 3-shot
+    
+    else:
+        raise ValueError(f"Unknown demonstration type: {cfg.demonstration}")
 @hydra.main(version_base="1.2", config_path="config", config_name="main.yaml")
 def main(cfg ) -> None:
 
@@ -49,11 +56,23 @@ def main(cfg ) -> None:
         print("Predicted sentiment:", pred)
         print("True label:", example['polarity'])
         normalize_prediction(pred,example)
-    example
+    
     from src.clearml import safe_init_clearml,connect_hyperparams_summary
     task=safe_init_clearml(project_name="NLP_CS",task_name=cfg.task_name)
     connect_hyperparams_summary(cfg=cfg,task=task,name="summary config")  # Connect a summary of the config
-    
+    demonstrations=get_demonstration(cfg=cfg,ds_train=ds_train,example=example)
+    prompt = build_prompt(example, demonstrations)
+    print("--- Sample Prompt ---")
+    print(prompt)
+
+    # log the sample prompt
+    task.get_logger().report_table(
+        title="Sample Prompt",
+        series="sample prompt",
+        table_plot=pd.DataFrame({"prompt": [prompt]}),
+    )
+
+
     # Predict for all train examples
     # demonstrations=ds_train.select([0,1,3])  # example: use 3-shot
     predictions = []
@@ -61,9 +80,10 @@ def main(cfg ) -> None:
     example_info={"polarity":[], "Aspect_Category":[], "Target_term":[],"labels":[],"Sentence":[]}
     build_prompte=select_prompt(cfg)
     model=cfg.model
+    print("start training")
     for i in range(maximum):
         example = ds_test[i]
-        demonstrations=get_demonstration(cfg=cfg,ds_train=ds_train)
+        demonstrations=get_demonstration(cfg=cfg,ds_train=ds_train,example=example)
         prompt = build_prompte(example, demonstrations)
         example_info["polarity"].append(example["polarity"])
         example_info["Aspect_Category"].append(example["Aspect_Category"])
@@ -102,9 +122,10 @@ def main(cfg ) -> None:
     print(f"\nIn-Context Learning Accuracy on Train Set (valid predictions only): {accuracy:.4f}")
     print(f"Invalid predictions: {len(results_df) - len(valid_preds)} out of {len(results_df)}")
     task.get_logger().report_scalar("accuracy", "accuracy", value=accuracy,iteration=0)
+    task.get_logger().report_scalar("invalid predictions", "invalid predictions", value=len(results_df) - len(valid_preds),iteration=0)
     #! only log the one that are incorrect
     results_df=results_df[results_df["predicted"] != results_df["true"]]
-    
+
     task.get_logger().report_table(
         title="Results",
         series="results",
