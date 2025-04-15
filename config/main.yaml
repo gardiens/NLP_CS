@@ -1,0 +1,11 @@
+
+
+task_name: Refined Prompt
+
+
+remap_label: False
+
+prompt_type: basic
+
+model: gemma3:1b
+demonstration: basic
