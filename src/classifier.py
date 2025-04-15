@@ -21,7 +21,7 @@ class Classifier:
         !!!!! If you have choosen an approach based on training an MLM or a generative LM, then your model should
         be defined and initialized here.
         """
-        pass
+        self.model = 
 
     
     
