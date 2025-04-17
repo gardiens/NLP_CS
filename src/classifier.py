@@ -1,6 +1,7 @@
 from typing import List
-
+from utils import load_data, remap_aspect
 import torch
+from ollama import Client
 
 
 class Classifier:
@@ -21,7 +22,10 @@ class Classifier:
         !!!!! If you have choosen an approach based on training an MLM or a generative LM, then your model should
         be defined and initialized here.
         """
-        self.model = 
+        self.model = None
+        self.client = Client(
+            host=ollama_url
+        )
 
     
     
@@ -38,6 +42,8 @@ class Classifier:
          OF MODEL HYPERPARAMETERS
 
         """
+        # in-context learning with ollama
+        pass
 
 
 
@@ -52,7 +58,14 @@ class Classifier:
           - PUT THE MODEL and DATA on the specified device! Do not use another device
         """
 
-
+        test_data = load_data(data_filename)
+        test_data = test_data.map(remap_aspect)
+        response = self.client.chat(model='gemma3:1b', messages=[
+            {
+                'role': 'user',
+                'content': 'Why is the sky blue?',
+            },
+        ])
 
 
 
