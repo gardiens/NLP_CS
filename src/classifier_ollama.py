@@ -126,7 +126,14 @@ class Classifier:
 
             result = response.json().get("response", "").strip().lower()
 
-            return result if result in ["positive", "negative", "neutral"] else "positive"
+            if "positive" in result:
+                return "positive"
+            elif "negative" in result:
+                return "negative"
+            elif "neutral" in result:
+                return "neutral"
+            else:
+                return "neutral"
 
         except Exception as e:
             print("Exception during Ollama call:", e)
