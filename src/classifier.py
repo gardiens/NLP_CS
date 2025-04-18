@@ -23,8 +23,9 @@ class Classifier:
         be defined and initialized here.
         """
         self.ollama_url = ollama_url
-        self.model_name = "gemma3:4b"
-        
+        self.model_name = "gemma3:4b"  
+        # self.model_name = "llama3.2:3b"
+
         # Task instruction
         # self.task_description = (
         #     "You are an aspect-based sentiment analysis system. "
@@ -32,13 +33,14 @@ class Classifier:
         #     "towards a given aspect term within a sentence. "
         #     "Use the provided character offset to identify the correct term occurrence.\n\n"
         #     "Respond with only one of the following labels: positive, negative, or neutral.\n\n"
+        #     "Examples:\n"
         # )
 
         self.task_description = """
-        Perform Aspect-Based Sentiment Analysis. Classify the sentiment as positive, negative, or neutral.
+        Perform Aspect-Based Sentiment Analysis. Classify the sentiment as positive, negative, or neutral. Answer in only one word.
         Examples: \n
         """
-        # Few-shot examples
+        # Few-shot examples (could be expanded if needed)
         self.demonstrations = [
             {
                 "sentence": "I had fish and my husband had the filet - both of which exceeded our expectations.",
@@ -99,7 +101,7 @@ class Classifier:
                 f"Character offset: {ex['offset']}\n"
                 f"Sentiment: {ex['label']}\n\n"
             )
-        prompt +="\n Analyze: \n"
+        prompt +="\n Analyze and return the sentiment: \n"
         prompt += (
             f"Sentence: {sentence}\n"
             f"Term: {target_term}\n"
@@ -125,7 +127,8 @@ class Classifier:
                 return "neutral"
 
             result = response.json().get("response", "").strip().lower()
-
+            if not result in ["positive", "negative", "neutral"]:
+                print("Unexpected result:", result)
             if "positive" in result:
                 return "positive"
             elif "negative" in result:
@@ -157,7 +160,6 @@ class Classifier:
         Otherwise:
           - PUT THE MODEL and DATA on the specified device! Do not use another device
         """
-        
         df = pd.read_csv(data_filename, sep="\t", header=None)
         df.columns = ["polarity", "aspect_category", "target_term", "char_offset", "sentence"]
 
