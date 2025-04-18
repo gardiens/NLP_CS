@@ -94,3 +94,39 @@ def predict_sentiment(example, demonstrations,build_prompt=build_prompt):
         {"role": "user", "content": prompt}
     ])
     return response['message']['content'].strip()
+
+system_prompt =  '''You are a helpful sentiment analysis model. You will be provided with a sentence, a term to classify as positive or negative, 
+                    and the aspect of the term, i.e. what it means in the context of the sentence. 
+
+                    Here are some examples of what is expected : 
+
+                    Sentence: short and sweet – seating is great:it's romantic,cozy and private.
+                    Aspect: the general ambience, Term: seating
+                    Sentiment: positive
+
+                    Sentence: This quaint and romantic trattoria is at the top of my Manhattan restaurant list.
+                    Aspect: the general ambience, Term: trattoria
+                    Sentiment: positive
+
+                    Sentence: The have over 100 different beers to offer thier guest so that made my husband very happy and the food was delicious, if I must recommend a dish it must be the pumkin tortelini.
+                    Aspect: the quality of the food, Term: food
+                    Sentiment: positive
+
+                    Sentence: THIS STAFF SHOULD BE FIRED.
+                    Aspect: the overall service, Term: STAFF
+                    Sentiment: negative
+
+                    Sentence: The menu looked great, and the waiter was very nice, but when the food came, it was average.
+                    Aspect: the variety or style of food options, Term: menu
+                    Sentiment: positive
+
+                    Sentence: The tuna and wasabe potatoes are excellent.
+                    Aspect: the quality of the food, Term: tuna
+                    Sentiment: positive
+
+
+                    Please provide your reasoning in free text format and anf then provide the classification of the word you are asked to analyze. Please only use the words 'positive' or 'negative' for indicating your sentiment at the end.
+                    You must use this format:
+                    Explanation:
+                    Sentiment: 
+                    '''
