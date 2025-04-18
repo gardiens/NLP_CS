@@ -18,6 +18,11 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 # load the csv  by hand
 from src.incontextclassif import * 
 
+try:
+    import clearml
+    clearml_found=True 
+except: 
+    clearml_found=False
 def select_prompt(cfg):
     if cfg.prompt_type=="basic":
         return build_prompt
@@ -56,21 +61,21 @@ def main(cfg ) -> None:
         print("Predicted sentiment:", pred)
         print("True label:", example['polarity'])
         normalize_prediction(pred,example)
-    
-    from src.clearml import safe_init_clearml,connect_hyperparams_summary
-    task=safe_init_clearml(project_name="NLP_CS",task_name=cfg.task_name)
-    connect_hyperparams_summary(cfg=cfg,task=task,name="summary config")  # Connect a summary of the config
+    if clearml_found:
+        from src.clearml import safe_init_clearml,connect_hyperparams_summary
+        task=safe_init_clearml(project_name="NLP_CS",task_name=cfg.task_name)
+        connect_hyperparams_summary(cfg=cfg,task=task,name="summary config")  # Connect a summary of the config
     demonstrations=get_demonstration(cfg=cfg,ds_train=ds_train,example=example)
     prompt = build_prompt(example, demonstrations)
     print("--- Sample Prompt ---")
     print(prompt)
-
-    # log the sample prompt
-    task.get_logger().report_table(
-        title="Sample Prompt",
-        series="sample prompt",
-        table_plot=pd.DataFrame({"prompt": [prompt]}),
-    )
+    if clearml_found:
+        # log the sample prompt
+        task.get_logger().report_table(
+            title="Sample Prompt",
+            series="sample prompt",
+            table_plot=pd.DataFrame({"prompt": [prompt]}),
+        )
 
 
     # Predict for all train examples
@@ -121,17 +126,18 @@ def main(cfg ) -> None:
     results_df.to_csv(cfg.task_name+"results_incontext.csv", index=False)
     print(f"\nIn-Context Learning Accuracy on Train Set (valid predictions only): {accuracy:.4f}")
     print(f"Invalid predictions: {len(results_df) - len(valid_preds)} out of {len(results_df)}")
-    task.get_logger().report_scalar("accuracy", "accuracy", value=accuracy,iteration=0)
-    task.get_logger().report_scalar("invalid predictions", "invalid predictions", value=len(results_df) - len(valid_preds),iteration=0)
-    #! only log the one that are incorrect
-    results_df=results_df[results_df["predicted"] != results_df["true"]]
+    if clearml_found:
+        task.get_logger().report_scalar("accuracy", "accuracy", value=accuracy,iteration=0)
+        task.get_logger().report_scalar("invalid predictions", "invalid predictions", value=len(results_df) - len(valid_preds),iteration=0)
+        #! only log the one that are incorrect
+        results_df=results_df[results_df["predicted"] != results_df["true"]]
 
-    task.get_logger().report_table(
-        title="Results",
-        series="results",
-        
-        table_plot=results_df,
-        iteration=0,
-    )
+        task.get_logger().report_table(
+            title="Results",
+            series="results",
+            
+            table_plot=results_df,
+            iteration=0,
+        )
 if __name__ == "__main__":
     main()
