@@ -1,8 +1,8 @@
 from typing import List
 import torch
 import requests
-from tqdm import tqdm
 import pandas as pd
+from tqdm import tqdm
 
 class Classifier:
     """
@@ -23,54 +23,13 @@ class Classifier:
         be defined and initialized here.
         """
         self.ollama_url = ollama_url
-        self.model_name = "gemma3:4b"  
-        # self.model_name = "llama3.2:3b"
+        self.model_name = "gemma3:4b"
+        self.prompts = [self.prompt_style_1, self.prompt_style_2, self.prompt_style_3]
 
-        # Task instruction
-        # self.task_description = (
-        #     "You are an aspect-based sentiment analysis system. "
-        #     "Your task is to classify the sentiment (positive, negative, or neutral) "
-        #     "towards a given aspect term within a sentence. "
-        #     "Use the provided character offset to identify the correct term occurrence.\n\n"
-        #     "Respond with only one of the following labels: positive, negative, or neutral.\n\n"
-        #     "Examples:\n"
-        # )
-
-        self.task_description = """
+        self.prompt_instruction = """
         Perform Aspect-Based Sentiment Analysis. Classify the sentiment as positive, negative, or neutral. Answer in only one word.
         Examples: \n
         """
-        # Few-shot examples (could be expanded if needed)
-        self.demonstrations = [
-            {
-                "sentence": "I had fish and my husband had the filet - both of which exceeded our expectations.",
-                "term": "filet",
-                "aspect": "FOOD#QUALITY",
-                "offset": "34:39",
-                "label": "positive"
-            },
-            {
-                "sentence": "My quesadilla tasted like it had been made by a three-year old with no sense of proportion or flavor.",
-                "term": "quesadilla",
-                "aspect": "FOOD#QUALITY",
-                "offset": "3:13",
-                "label": "negative"
-            },
-            {
-                "sentence": "The food was ok and fair nothing to go crazy.",
-                "term": "food",
-                "aspect": "FOOD#QUALITY",
-                "offset": "4:8",
-                "label": "neutral"
-            },
-            {
-                "sentence": "I have never left a restaurant feeling as if I was abused, and wasted my hard earned money.",
-                "term": "restaurant",
-                "aspect": "RESTAURANT#GENERAL",
-                "offset": "20:30",
-                "label": "negative"
-            }
-        ]
 
     def train(self, train_filename: str, dev_filename: str, device: torch.device):
         """
@@ -85,50 +44,19 @@ class Classifier:
          OF MODEL HYPERPARAMETERS
 
         """
-        pass
-
-    def build_prompt(self, sentence: str, aspect: str, offset: str, category: str, target_term: str) -> str:
-        """
-        Constructs a prompt for in-context prediction, including few-shot examples.
-        """
-        prompt = self.task_description
-
-        for ex in self.demonstrations:
-            prompt += (
-                f"Sentence: {ex['sentence']}\n"
-                f"Term: {ex['term']}\n"
-                f"Aspect category: {ex['aspect']}\n"
-                f"Character offset: {ex['offset']}\n"
-                f"Sentiment: {ex['label']}\n\n"
-            )
-        prompt +="\n Analyze and return the sentiment: \n"
-        prompt += (
-            f"Sentence: {sentence}\n"
-            f"Term: {target_term}\n"
-            f"Aspect category: {category}\n"
-            f"Character offset: {offset}\n"
-            f"Sentiment:"
-        )
-
-        return prompt
+        pass  # Not used in in-context learning
 
     def call_ollama(self, prompt: str) -> str:
-        """
-        Calls Ollama API with a prompt and extracts the predicted sentiment.
-        """
         try:
             response = requests.post(
                 f"{self.ollama_url}/api/generate",
-                json={"model": self.model_name, "prompt": prompt, "stream": False}
+                json={"model": self.model_name, "prompt": prompt,"temperature":0, "stream": False}
             )
-
             if response.status_code != 200:
                 print("Error:", response.status_code, response.text)
                 return "neutral"
 
             result = response.json().get("response", "").strip().lower()
-            if not result in ["positive", "negative", "neutral"]:
-                print("Unexpected result:", result)
             if "positive" in result:
                 return "positive"
             elif "negative" in result:
@@ -142,13 +70,117 @@ class Classifier:
             print("Exception during Ollama call:", e)
             return "neutral"
 
-    # def compute_accuracy(self, gold: List[str], predicted: List[str]) -> float:
-    #     """
-    #     Compares predicted vs true labels.
-    #     """
-    #     correct = sum(1 for g, p in zip(gold, predicted) if g.strip().lower() == p.strip().lower())
-    #     total = len(gold)
-    #     return correct / total if total > 0 else 0.0
+    def majority_vote(self, predictions: List[str]) -> str:
+      count_dict = {}
+      for pred in predictions:
+          if pred in count_dict:
+              count_dict[pred] += 1
+          else:
+              count_dict[pred] = 1
+
+      max_count = -1
+      majority_label = None
+      for label, count in count_dict.items():
+          if count > max_count:
+              max_count = count
+              majority_label = label
+
+      return majority_label
+
+
+    def prompt_style_1(self, sentence, target_term, aspect, offset):
+        examples =  [
+            # ("My quesadilla tasted like it had been made by a three-year old with no sense of proportion or flavor.", "quesadilla", "FOOD#QUALITY", "3:13", "negative"),
+            # ("This place is incredibly tiny.", "place", "RESTAURANT#MISCELLANEOUS", "5:10", "negative"),
+            # ("I found the food to be outstanding, particulary the salmon dish I had.", "food", "FOOD#QUALITY", "12:16", "positive"),
+            ("Service was prompt and courteous.", "Service", "SERVICE#GENERAL", "0:7", "positive"),
+            # # ("delicious bagels, especially when right out of the oven.", "bagels", "FOOD#QUALITY", "10:16", "positive"),
+            # ("I have never left a restaurant feeling as if i was abused, and wasted my hard earned money.", "restaurant", "RESTAURANT#GENERAL", "20:30", "negative"),
+            # ("The food was ok and fair nothing to go crazy.", "food", "FOOD#QUALITY", "4:8", "neutral"),
+            # ("overpriced japanese food with mediocre service", "service", "SERVICE#GENERAL", "39:46", "neutral")
+        ]
+
+        prompt = self.prompt_instruction
+        for ex in examples:
+            prompt += (
+                f"Sentence: {ex[0]}\n"
+                f"Term: {ex[1]}\n"
+                f"Aspect category: {ex[2]}\n"
+                f"Character offset: {ex[3]}\n"
+                f"Sentiment: {ex[4]}\n\n"
+            )
+        prompt +="\n Analyze and return the sentiment: \n"
+        prompt += (
+            f"Sentence: {sentence}\n"
+            f"Term: {target_term}\n"
+            f"Aspect category: {aspect}\n"
+            f"Character offset: {offset}\n"
+            f"Sentiment:"
+        )
+        return prompt
+
+    def prompt_style_2(self, sentence, target_term, aspect, offset):
+        examples =  [
+            # ("My quesadilla tasted like it had been made by a three-year old with no sense of proportion or flavor.", "quesadilla", "FOOD#QUALITY", "3:13", "negative"),
+            # ("This place is incredibly tiny.", "place", "RESTAURANT#MISCELLANEOUS", "5:10", "negative"),
+            # ("I found the food to be outstanding, particulary the salmon dish I had.", "food", "FOOD#QUALITY", "12:16", "positive"),
+            # ("Service was prompt and courteous.", "Service", "SERVICE#GENERAL", "0:7", "positive"),
+            # ("delicious bagels, especially when right out of the oven.", "bagels", "FOOD#QUALITY", "10:16", "positive"),
+            ("I have never left a restaurant feeling as if i was abused, and wasted my hard earned money.", "restaurant", "RESTAURANT#GENERAL", "20:30", "negative"),
+            # ("The food was ok and fair nothing to go crazy.", "food", "FOOD#QUALITY", "4:8", "neutral"),
+            # ("overpriced japanese food with mediocre service", "service", "SERVICE#GENERAL", "39:46", "neutral")
+        ]
+
+        prompt = self.prompt_instruction
+        for ex in examples:
+            prompt += (
+                f"Sentence: {ex[0]}\n"
+                f"Term: {ex[1]}\n"
+                f"Aspect category: {ex[2]}\n"
+                f"Character offset: {ex[3]}\n"
+                f"Sentiment: {ex[4]}\n\n"
+            )
+        prompt +="\n Analyze and return the sentiment: \n"
+        prompt += (
+            f"Sentence: {sentence}\n"
+            f"Term: {target_term}\n"
+            f"Aspect category: {aspect}\n"
+            f"Character offset: {offset}\n"
+            f"Sentiment:"
+        )
+        return prompt
+
+    def prompt_style_3(self, sentence, target_term, aspect, offset):
+        examples =  [
+            # ("I had fish and my husband had the filet - both of which exceeded our expectations.","filet","FOOD#QUALITY","34:39","positive"),
+            # ("My quesadilla tasted like it had been made by a three-year old with no sense of proportion or flavor.", "quesadilla", "FOOD#QUALITY", "3:13", "negative"),
+            # ("This place is incredibly tiny.", "place", "RESTAURANT#MISCELLANEOUS", "5:10", "negative"),
+            # ("I found the food to be outstanding, particulary the salmon dish I had.", "food", "FOOD#QUALITY", "12:16", "positive"),
+            # ("Service was prompt and courteous.", "Service", "SERVICE#GENERAL", "0:7", "positive"),
+            # ("delicious bagels, especially when right out of the oven.", "bagels", "FOOD#QUALITY", "10:16", "positive"),
+            # ("I have never left a restaurant feeling as if i was abused, and wasted my hard earned money.", "restaurant", "RESTAURANT#GENERAL", "20:30", "negative"),
+            ("The food was ok and fair nothing to go crazy.", "food", "FOOD#QUALITY", "4:8", "neutral"),
+            # ("overpriced japanese food with mediocre service", "service", "SERVICE#GENERAL", "39:46", "neutral")
+        ]
+
+        prompt = self.prompt_instruction
+        for ex in examples:
+            prompt += (
+                f"Sentence: {ex[0]}\n"
+                f"Term: {ex[1]}\n"
+                f"Aspect category: {ex[2]}\n"
+                f"Character offset: {ex[3]}\n"
+                f"Sentiment: {ex[4]}\n\n"
+            )
+        prompt +="\n Analyze and return the sentiment: \n"
+        prompt += (
+            f"Sentence: {sentence}\n"
+            f"Term: {target_term}\n"
+            f"Aspect category: {aspect}\n"
+            f"Character offset: {offset}\n"
+            f"Sentiment:"
+        )
+        return prompt
 
     def predict(self, data_filename: str, device: torch.device) -> List[str]:
         """Predicts class labels for the input instances in file 'datafile'
@@ -163,22 +195,22 @@ class Classifier:
         df = pd.read_csv(data_filename, sep="\t", header=None)
         df.columns = ["polarity", "aspect_category", "target_term", "char_offset", "sentence"]
 
-        y_true = df["polarity"].tolist()
         y_pred = []
-
-        print("Running predictions using Ollama...")
+        print("Running ensemble predictions with multiple prompts...")
 
         for _, row in tqdm(df.iterrows(), total=len(df)):
-            prompt = self.build_prompt(
-                sentence=row["sentence"],
-                aspect=row["aspect_category"],
-                offset=row["char_offset"],
-                category=row["aspect_category"],
-                target_term = row["target_term"]
-            )
-            pred = self.call_ollama(prompt)
-            y_pred.append(pred)
+            predictions = []
+            for prompt_builder in self.prompts:
+                prompt = prompt_builder(
+                    sentence=row["sentence"],
+                    target_term=row["target_term"],
+                    aspect=row["aspect_category"],
+                    offset=row["char_offset"]
+                )
+                pred = self.call_ollama(prompt)
+                predictions.append(pred)
 
-        # acc = self.compute_accuracy(y_true, y_pred)
-        # print(f"\nAccuracy on the dataset: {acc * 100:.2f}%")
+            final = self.majority_vote(predictions)
+            y_pred.append(final)
+
         return y_pred
