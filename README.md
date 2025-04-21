@@ -8,7 +8,7 @@ The following students contributed to this project:
 
 
 ## 🧠 Classifier Description
-We implemented an *in-context* classification approach using few-shot learning. To mitigate prediction bias and enhance robustness, we designed multiple prompts with varying polarity.  
+We implemented an *in-context* classification approach using few-shot learning. To mitigate prediction bias and enhance robustness, we designed multiple prompts with varying polarity.  The design of the prompt is described in Section [Prompting Strategy](#prompting-strategy-and-other-experiments) 
 
 After evaluating several models, we selected **Gemma 3:4B** as the backbone due to its favorable trade-off between performance and inference time.  
 
@@ -28,7 +28,7 @@ On the development set, our classifier achieved an accuracy of:
 ## Prompting strategy and other experiments
 
 **Prompting Strategy:**
-Our prompting strategy is based on a polarity-conditioned one-shot ensemble method.
+Our prompting strategy is based on a polarity-conditioned one-shot  prompt.
 - **We constructed the prompt with concise and minimal instructions**. Longer task instructions seemed to confuse the model and reduce accuracy likely because we used smaller quantized model.
 - **We use one-shot prompts with  three different polarity to reduce bias and maximize its performance**. We also tried the same approach with unbalanced few-shots with 2 neutral, 1 postive, 1 negative / 1 neutral, 2 positive, 1 negative and 1 neutral, 1 positive, 2 negative but the accuracy was lower.
 - **We limited ensemble size to three prompts** . We wanted to balance accuracy and inference speed, since inference time was also part of the evaluation criteria.
