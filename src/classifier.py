@@ -19,8 +19,6 @@ class Classifier:
         !!!!! If the approach you have choosen is in-context-learning with an LLM from Ollama, you should initialize
          the ollama client here using the 'ollama_url' that is provided (please do not use your own ollama
          URL!)
-        !!!!! If you have choosen an approach based on training an MLM or a generative LM, then your model should
-        be defined and initialized here.
         """
         self.ollama_url = ollama_url
         self.model_name = "gemma3:4b"
@@ -44,9 +42,22 @@ class Classifier:
          OF MODEL HYPERPARAMETERS
 
         """
-        pass  # Not used in in-context learning
+        # We use in context learning we don't change it 
+        pass  
 
     def call_ollama(self, prompt: str) -> str:
+        """Call ollama and return the prompt
+
+        Parameters
+        ----------
+        prompt : str
+            The corresponding prompt
+
+        Returns
+        -------
+        str
+            the answer of the ollama model
+        """        
         try:
             response = requests.post(
                 f"{self.ollama_url}/api/generate",
@@ -71,24 +82,37 @@ class Classifier:
             return "neutral"
 
     def majority_vote(self, predictions: List[str]) -> str:
-      count_dict = {}
-      for pred in predictions:
-          if pred in count_dict:
-              count_dict[pred] += 1
-          else:
-              count_dict[pred] = 1
+        """Based on different predictions, return the majority vote
 
-      max_count = -1
-      majority_label = None
-      for label, count in count_dict.items():
-          if count > max_count:
-              max_count = count
-              majority_label = label
+        Parameters
+        ----------
+        predictions : List[str]
+            The list of predictions of the different prompt
 
-      return majority_label
+        Returns
+        -------
+        str
+            the corresponding label
+        """      
+        count_dict = {}
+        for pred in predictions:
+            if pred in count_dict:
+                count_dict[pred] += 1
+            else:
+                count_dict[pred] = 1
+
+        max_count = -1
+        majority_label = None
+        for label, count in count_dict.items():
+            if count > max_count:
+                max_count = count
+                majority_label = label
+
+        return majority_label
 
 
     def prompt_style_1(self, sentence, target_term, aspect, offset):
+        # first positive prompt 
         examples =  [
             # ("My quesadilla tasted like it had been made by a three-year old with no sense of proportion or flavor.", "quesadilla", "FOOD#QUALITY", "3:13", "negative"),
             # ("This place is incredibly tiny.", "place", "RESTAURANT#MISCELLANEOUS", "5:10", "negative"),
@@ -120,6 +144,7 @@ class Classifier:
         return prompt
 
     def prompt_style_2(self, sentence, target_term, aspect, offset):
+        # Second negative prompt
         examples =  [
             # ("My quesadilla tasted like it had been made by a three-year old with no sense of proportion or flavor.", "quesadilla", "FOOD#QUALITY", "3:13", "negative"),
             # ("This place is incredibly tiny.", "place", "RESTAURANT#MISCELLANEOUS", "5:10", "negative"),
@@ -151,6 +176,7 @@ class Classifier:
         return prompt
 
     def prompt_style_3(self, sentence, target_term, aspect, offset):
+        # Third neutral prompt
         examples =  [
             # ("I had fish and my husband had the filet - both of which exceeded our expectations.","filet","FOOD#QUALITY","34:39","positive"),
             # ("My quesadilla tasted like it had been made by a three-year old with no sense of proportion or flavor.", "quesadilla", "FOOD#QUALITY", "3:13", "negative"),
@@ -198,18 +224,20 @@ class Classifier:
         y_pred = []
         print("Running ensemble predictions with multiple prompts...")
 
-        for _, row in tqdm(df.iterrows(), total=len(df)):
+        for _, row in tqdm(df.iterrows(), total=len(df)): # for every sample
             predictions = []
-            for prompt_builder in self.prompts:
+            for prompt_builder in self.prompts: #for every prompt 
+                # build the prompt
                 prompt = prompt_builder(
                     sentence=row["sentence"],
                     target_term=row["target_term"],
                     aspect=row["aspect_category"],
                     offset=row["char_offset"]
                 )
+                # call ollama to get the corresponding rpompt
                 pred = self.call_ollama(prompt)
                 predictions.append(pred)
-
+            #eventually, chose the final label based on the majority vote
             final = self.majority_vote(predictions)
             y_pred.append(final)
 
