@@ -28,9 +28,10 @@ On the development set, our classifier achieved an accuracy of:
 ## Prompting strategy and other experiments
 
 **Prompting Strategy:**
-- We constructed the prompt with concise and minimal instructions since longer task instructions seemed to confuse the model and reduce accuracy likely because we used smaller quantized model.
-- We use one-shot prompts with the three different polarity to reduce bias and maximize its performance. We also tried the same approach with unbalanced few-shots with 2 neutral, 1 postive, 1 negative / 1 neutral, 2 positive, 1 negative and 1 neutral, 1 positive, 2 negative but the accuracy was lower.
-- We limited ensemble size to three prompts to balance accuracy and inference speed, since inference time was also part of the evaluation criteria.
+Our prompting strategy is based on a polarity-conditioned one-shot ensemble method.
+- **We constructed the prompt with concise and minimal instructions**. Longer task instructions seemed to confuse the model and reduce accuracy likely because we used smaller quantized model.
+- **We use one-shot prompts with  three different polarity to reduce bias and maximize its performance**. We also tried the same approach with unbalanced few-shots with 2 neutral, 1 postive, 1 negative / 1 neutral, 2 positive, 1 negative and 1 neutral, 1 positive, 2 negative but the accuracy was lower.
+- **We limited ensemble size to three prompts** . We wanted to balance accuracy and inference speed, since inference time was also part of the evaluation criteria.
 
 **Other Exploration**
 We experimented with various possible enhancements:
@@ -38,4 +39,3 @@ We experimented with various possible enhancements:
 - Using special tokens [T]...[/T] to emphasize the target term in context instead of the offset, which did not improve our accuracy
 - Dynamic retrieval of few-shot examples using semantic similarity via BERT embeddings. We embedded the entire train set during training, and then compute the similiraty between the test instance and the train set to retrieve the 3 most similar. We include these 3 examples in our few-shots prompt. Embedding-based dynamic retrieval was promising but increased latency (it took 3 minutes to embed the train set and it also increased inference time due to the retrieval computation) and complexity without consistent accuracy gains.
 
-Ultimately, we reverted to a **lightweight prompt ensemble** approach with minimal instructions and curated one-shot examples to balance performance and inference speed.
